@@ -1,0 +1,73 @@
+################################################################################
+# File 06: Guida Finale all'Utilizzo del Gestionale Dinamico
+################################################################################
+
+**Congratulazioni! Hai completato la creazione del tuo gestionale dinamico in Excel.**
+
+Se hai seguito tutti i file di istruzioni, ora hai uno strumento potente per pianificare, monitorare e aggiornare i flussi di lavoro. Questa guida riepiloga come usarlo al meglio.
+
+---
+
+### **Promemoria Fondamentale**
+
+Salva sempre il file nel formato **"Cartella di lavoro con attivazione macro di Excel (*.xlsm)"** per non perdere le macro.
+
+---
+
+### **Il Flusso di Lavoro Quotidiano: Guida Rapida**
+
+**Passo 1: Gestisci le Commesse nel Foglio Master**
+*   Il foglio **`ELENCO_COMMESSE`** è il cuore del sistema.
+*   Aggiungi qui le nuove commesse o **modifica le ore stimate** di quelle esistenti. Questo è il foglio "master" da cui il sistema preleva i dati.
+
+**Passo 2: Vai al Mese Corrente**
+*   Spostati sul foglio del mese in cui vuoi pianificare (es. `Gennaio2026`).
+
+**Passo 3: Importa o Aggiorna le Commesse**
+*   Clicca sul pulsante **`Importa/Aggiorna Commesse`**.
+*   Si aprirà la finestra di selezione avanzata:
+    *   **Ordinamento:** Le commesse sono ordinate per **data di consegna**, le più urgenti in cima.
+    *   **Stato Globale:** Accanto a ogni nome, vedrai uno stato (`[COMPLETATA]`, `[IN CORSO]`, `[NON AVVIATA]`) che ti dà un'idea immediata dell'avanzamento totale di quella commessa su tutti i mesi.
+*   Seleziona una o più commesse e clicca `Importa/Aggiorna`:
+    *   Se una commessa **non è presente** nel mese, verrà importata.
+    *   Se **è già presente**, il sistema **sincronizzerà le ore** con quelle del foglio `ELENCO_COMMESSE`. Se hai ridotto le ore, quelle in eccesso verranno rimosse automaticamente dal calendario.
+
+**Passo 4: Seleziona le Ore da Assegnare**
+*   Nella tabella riepilogativa, clicca sulla cella delle ore che vuoi pianificare.
+
+**Passo 5: Assegna il Lavoro agli Operatori**
+*   Clicca sul pulsante **`Assegna Ore Selezionate`**.
+*   Nella finestra vedrai un riepilogo delle ore totali, già assegnate e rimanenti.
+*   Inserisci le ore da assegnare agli operatori e clicca `Assegna Ore`. Il sistema le piazzerà nel primo slot libero, rispettando la sequenza delle fasi.
+
+**Passo 6: Gestisci o Elimina Ore (Nuova Funzionalità)**
+*   Se hai bisogno di rimuovere ore o un'intera commessa dal calendario, clicca sul nuovo pulsante **`Gestisci/Elimina Ore`**.
+*   Nella finestra:
+    1.  Seleziona la **commessa** che ti interessa.
+    2.  Seleziona la **fase** specifica.
+    3.  Scegli l'azione:
+        -   **`Elimina Tutta la Commessa`**: Rimuove ogni ora di quella commessa da tutti i calendari.
+        -   **`Elimina Fase Selezionata`**: Rimuove ogni ora solo della fase scelta.
+        -   **`Rimuovi Ore`**: Inserisci un numero nel campo "Ore da rimuovere" per togliere solo quelle ore (le più recenti).
+*   Dopo ogni eliminazione, il sistema **ricompatterà automaticamente** l'intero calendario per colmare i buchi.
+
+**Passo 7: Monitora l'Avanzamento**
+*   **Calendario:** Si popolerà con blocchi colorati. Passa il mouse sopra un blocco per vedere i dettagli.
+*   **Tabella Riepilogativa:** Le celle si coloreranno per darti un feedback immediato:
+    *   **Rosso:** Nessuna ora assegnata.
+    *   **Arancione:** Lavoro assegnato parzialmente.
+    *   **Verde:** Tutte le ore di quella fase sono state assegnate.
+
+---
+
+### **Consigli Utili**
+
+*   **Nascondere il Template:** Clicca con il tasto destro sulla linguetta del foglio `Template_Mese` e scegli `Nascondi` per tenerlo fuori dalla vista.
+*   **Gestione Operatori:** Aggiungi o rimuovi operatori modificando i nomi dalla riga 4 in giù in ogni foglio mensile. Le macro si adattano automaticamente.
+*   **Modifica Pulsanti:** Tieni premuto `CTRL` e clicca su un pulsante per poterlo selezionare e spostare senza attivarlo.
+
+---
+
+**Hai finito!**
+
+Ora hai tutti gli elementi per sfruttare al massimo il tuo nuovo gestionale dinamico. Buon lavoro!

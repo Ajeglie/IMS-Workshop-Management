@@ -1,0 +1,306 @@
+################################################################################
+# File 04: Macro per l'Assegnazione delle Ore (Versione Corretta)
+################################################################################
+
+Ciao! Ora creiamo la funzionalità principale: l'assegnazione delle ore nel calendario.
+
+Questa macro permetterà di selezionare le ore di una fase e assegnarle agli operatori. Il codice troverà automaticamente gli spazi liberi, rispettando le precedenze tra le fasi, e colorerà il calendario.
+
+---
+
+### **Azione 1: Creare la Finestra di Assegnazione (UserForm)**
+
+1.  Apri l'editor di VBA (**`ALT + F11`**).
+2.  Vai su **`Inserisci`** -> **`UserForm`**.
+3.  Seleziona la nuova UserForm e, nella finestra "Proprietà", imposta:
+    -   `(Name)`: **`frmAssegnaOre`**
+    -   `Caption`: **`Assegna Ore a Operatori`**
+    -   `Height`: Aumentala a **`400`**.
+    -   `Width`: Impostala a **`300`**.
+
+---
+
+### **Azione 2: Aggiungere i Controlli alla UserForm**
+
+1.  **Etichetta (Label) per le Info:**
+    -   Disegnala in cima alla UserForm. Proprietà:
+        -   `(Name)`: **`lblInfoCommessa`**
+        -   `WordWrap`: **`True`**.
+
+2.  **Etichetta e TextBox per Sovrapposizione (Nuova Funzionalità):**
+    -   Disegna un'etichetta piccola in basso. `Caption`: **`Sovrapponi ore:`**
+    -   Accanto, disegna una `Casella di testo`. Proprietà:
+        -   `(Name)`: **`txtSovrapponi`**
+        -   `Width`: **`30`**
+
+3.  **Contenitore (Frame) per gli Operatori:**
+    -   Disegna un grande riquadro al centro. Proprietà:
+        -   `(Name)`: **`fraOperatori`**
+        -   `Caption`: **`Operatori`**
+
+4.  **Pulsanti di Comando:**
+    -   Disegna due pulsanti in basso.
+    -   **Pulsante 1:** `(Name)`: **`cmdAssegna`**, `Caption`: **`Assegna Ore`**
+    -   **Pulsante 2:** `(Name)`: **`cmdAnnulla`**, `Caption`: **`Annulla`**
+
+---
+
+### **Azione 3: Scrivere il Codice per la UserForm `frmAssegnaOre`**
+
+Questo codice popola la finestra e gestisce la logica di assegnazione.
+
+1.  Fai **doppio clic** su un'area vuota della UserForm `frmAssegnaOre`.
+2.  Cancella tutto il testo e incolla il seguente codice:
+
+```vb
+Option Explicit
+
+' Variabili pubbliche popolate dalla macro principale
+Public OreTotali As Double
+Public OreAssegnateIniziali As Double
+Public NomeFase As String
+Public NomeCommessa As String
+Public CellaDiOrigine As Range
+Public OrarioMinimoDiPartenza As Date
+
+' All'apertura della finestra, mostra le informazioni corrette
+Private Sub UserForm_Initialize()
+    Dim opLabel As MSForms.Label, opTextBox As MSForms.TextBox, i As Long, lastRow As Long
+    Dim oreResidue As Double: oreResidue = OreTotali - OreAssegnateIniziali
+    
+    ' NUOVA ETICHETTA INFORMATIVA
+    Me.lblInfoCommessa.Caption = "Fase: " & NomeFase & " | Ore Totali: " & OreTotali & " | Già Assegnate: " & OreAssegnateIniziali & " | Rimanenti: " & oreResidue
+    
+    lastRow = ActiveSheet.Cells(25, "A").End(xlUp).Row
+    For i = 4 To lastRow
+        Set opLabel = Me.fraOperatori.Controls.Add("Forms.Label.1", "lblOp" & i)
+        With opLabel
+            .Caption = ActiveSheet.Cells(i, "A").Value: .Top = 20 + (i - 4) * 25: .Left = 10: .Width = 150
+        End With
+        Set opTextBox = Me.fraOperatori.Controls.Add("Forms.TextBox.1", "txtOp" & i)
+        With opTextBox
+            .Top = 20 + (i - 4) * 25: .Left = 170: .Width = 50
+        End With
+    Next i
+End Sub
+
+Private Sub cmdAnnulla_Click()
+    Unload Me
+End Sub
+
+' Logica di assegnazione finale e corretta
+Private Sub cmdAssegna_Click()
+    Dim totaleOreInserite As Double, ctrl As MSForms.Control, sovrapponiOre As Long
+    Dim oreResidue As Double: oreResidue = Me.OreTotali - Me.OreAssegnateIniziali
+    
+    If Me.txtSovrapponi.Text <> "" And IsNumeric(Me.txtSovrapponi.Text) Then
+        sovrapponiOre = CLng(Me.txtSovrapponi.Text)
+    Else
+        sovrapponiOre = 0
+    End If
+
+    For Each ctrl In Me.fraOperatori.Controls
+        If TypeName(ctrl) = "TextBox" Then
+            If ctrl.Text <> "" Then
+                If IsNumeric(ctrl.Text) Then
+                    totaleOreInserite = totaleOreInserite + CDbl(ctrl.Text)
+                End If
+            End If
+        End If
+    Next ctrl
+    
+    If totaleOreInserite > oreResidue Then
+        MsgBox "Stai tentando di assegnare " & totaleOreInserite & " ore, ma ne hai solo " & oreResidue & " residue.", vbExclamation
+        Exit Sub
+    End If
+    
+    For Each ctrl In Me.fraOperatori.Controls
+        If TypeName(ctrl) = "TextBox" Then
+            If ctrl.Text <> "" Then
+                If IsNumeric(ctrl.Text) Then
+                    If CDbl(ctrl.Text) > 0 Then
+                        Dim rigaOperatore As Long: rigaOperatore = CLng(Replace(ctrl.Name, "txtOp", ""))
+                        Dim orarioPartenzaEffettivo As Date: orarioPartenzaEffettivo = DateAdd("h", -sovrapponiOre, Me.OrarioMinimoDiPartenza)
+                        Call AssegnaOreACalendario(rigaOperatore, CDbl(ctrl.Text), NomeFase, NomeCommessa, orarioPartenzaEffettivo, Me.CellaDiOrigine)
+                    End If
+                End If
+            End If
+        End If
+    Next ctrl
+    
+    Call AggiornaColoreCellaStato(Me.CellaDiOrigine)
+    Call AggiornaStatoCommessaInElenco(Me.CellaDiOrigine)
+    
+    Unload Me
+    MsgBox "Assegnazione completata!", vbInformation
+End Sub
+```
+
+---
+
+### **Azione 4: Aggiungere le Macro di Supporto nel Modulo1**
+
+Queste macro contengono la logica principale per l'assegnazione.
+
+1.  Torna al **`Modulo1`**.
+2.  Incolla il seguente codice alla fine del modulo.
+
+```vb
+' --- MACRO PER GESTIRE L'ASSEGNAZIONE ORE ---
+
+Sub AvviaAssegnazioneOre()
+    If ActiveCell.Row < 28 Or ActiveCell.Column = 1 Or Not IsNumeric(ActiveCell.Value) Or ActiveCell.Value <= 0 Then
+        MsgBox "Seleziona una cella contenente le ore di una fase nella tabella riepilogativa.", vbExclamation
+        Exit Sub
+    End If
+    
+    Dim faseCorrente As String: faseCorrente = ActiveSheet.Cells(ActiveCell.Row, 1).Value
+    Dim commessaCorrente As String: commessaCorrente = ActiveSheet.Cells(27, ActiveCell.Column).Value
+    
+    Dim oreTotali As Double: oreTotali = ActiveCell.Value
+    Dim oreAssegnate As Double: oreAssegnate = ContaOreAssegnate(commessaCorrente, faseCorrente)
+    Dim oreResidue As Double: oreResidue = oreTotali - oreAssegnate
+    
+    If oreResidue <= 0 Then
+        MsgBox "Tutte le ore per questa fase sono già state assegnate.", vbInformation
+        Exit Sub
+    End If
+    
+    ' Logica per calcolare l'orario di partenza in base alla fine della fase precedente
+    Dim fasiOrdine As Variant: fasiOrdine = Array("ORE SVILUPPO", "ORE LASER 1", "ORE LASER 2", "ORE PUNZONATURA", "ORE TAGLIO", "ORE SBAVATURA/ SATINATURA", "ORE PIEGA", "ORE FORATURA/ MASCHIATURA / FRESATURA/ TORNITURA", "ORE CALANDRATURA/ CURVATURA", "ORE ASSEMBLAGGIO", "ORE COLLAUDO")
+    Dim orarioDiPartenza As Date: orarioDiPartenza = 0
+    
+    Dim i As Long
+    For i = LBound(fasiOrdine) To UBound(fasiOrdine)
+        If fasiOrdine(i) = faseCorrente Then
+            If i > LBound(fasiOrdine) Then
+                Dim j As Long
+                For j = i - 1 To LBound(fasiOrdine) Step -1
+                    Dim fasePrecedente As String: fasePrecedente = fasiOrdine(j)
+                    Dim cellaFasePrec As Range
+                    On Error Resume Next
+                    Set cellaFasePrec = ActiveSheet.Range("A28:A38").Find(fasePrecedente, LookIn:=xlValues, LookAt:=xlWhole)
+                    On Error GoTo 0
+                    If Not cellaFasePrec Is Nothing Then
+                        If ActiveSheet.Cells(cellaFasePrec.Row, ActiveCell.Column).Value > 0 Then
+                            Dim oraFineUltimaOraPrec As Date
+                            oraFineUltimaOraPrec = TrovaUltimaDataOraAssegnata(commessaCorrente, fasePrecedente)
+                            
+                            If oraFineUltimaOraPrec = 0 Then
+                                MsgBox "Impossibile procedere. La fase precedente '" & fasePrecedente & "' non ha ancora ore assegnate.", vbCritical
+                                Exit Sub
+                            Else
+                                orarioDiPartenza = oraFineUltimaOraPrec
+                            End If
+                            Exit For
+                        End If
+                    End If
+                Next j
+            End If
+            Exit For
+        End If
+    Next i
+    
+    ' Popola e mostra la finestra di assegnazione
+    With frmAssegnaOre
+        .OreTotali = oreTotali
+        .OreAssegnateIniziali = oreAssegnate
+        .NomeFase = faseCorrente
+        .NomeCommessa = commessaCorrente
+        Set .CellaDiOrigine = ActiveCell
+        .OrarioMinimoDiPartenza = orarioDiPartenza
+        .Show
+    End With
+End Sub
+
+' Assegna le ore nel calendario, colorando le celle e restituendo l'orario di fine
+Function AssegnaOreACalendario(rigaOperatore As Long, oreDaAssegnare As Double, nomeFase As String, nomeCommessa As String, orarioPartenzaObbligatorio As Date, Optional CellaDiOrigine As Range = Nothing) As Date
+    Dim ws As Worksheet, startSheet As Worksheet, coloreFase As Long, oreAssegnate As Double, col As Long, noteText As String, cliente As String
+    Dim ultimaOraFine As Date: ultimaOraFine = 0 ' Variabile per tracciare l'orario di fine
+    
+    If Not CellaDiOrigine Is Nothing Then
+        Set startSheet = CellaDiOrigine.Worksheet
+        cliente = startSheet.Cells(26, CellaDiOrigine.Column).Value
+    Else
+        ' Se la cella di origine non è fornita (chiamata da Ricompatta), trova il cliente da ELENCO_COMMESSE
+        Dim elencoSheet As Worksheet: Set elencoSheet = ThisWorkbook.Worksheets("ELENCO_COMMESSE")
+        Dim rigaCommessa As Range: Set rigaCommessa = elencoSheet.Range("B:B").Find(nomeCommessa, LookIn:=xlValues, LookAt:=xlWhole)
+        If Not rigaCommessa Is Nothing Then
+            cliente = elencoSheet.Cells(rigaCommessa.Row, "C").Value
+        Else
+            cliente = "N/D"
+        End If
+    End If
+    oreAssegnate = 0
+    
+    ' Mappa dei Colori
+    Select Case nomeFase
+        Case "ORE SVILUPPO": coloreFase = RGB(173, 216, 230)
+        Case "ORE LASER 1": coloreFase = RGB(250, 128, 114)
+        Case "ORE LASER 2": coloreFase = RGB(255, 165, 0)
+        Case "ORE PUNZONATURA": coloreFase = RGB(144, 238, 144)
+        Case "ORE TAGLIO": coloreFase = RGB(221, 160, 221)
+        Case "ORE SBAVATURA/ SATINATURA": coloreFase = RGB(244, 164, 96)
+        Case "ORE PIEGA": coloreFase = RGB(255, 255, 0)
+        Case "ORE FORATURA/ MASCHIATURA / FRESATURA/ TORNITURA": coloreFase = RGB(0, 191, 255)
+        Case "ORE CALANDRATURA/ CURVATURA": coloreFase = RGB(60, 179, 113)
+        Case "ORE ASSEMBLAGGIO": coloreFase = RGB(211, 211, 211)
+        Case "ORE COLLAUDO": coloreFase = RGB(255, 105, 180)
+        Case Else: coloreFase = RGB(255, 0, 0)
+    End Select
+    
+    noteText = "Commessa: " & nomeCommessa & vbNewLine & "Cliente: " & cliente & vbNewLine & "Fase: " & nomeFase
+    Application.ScreenUpdating = False
+
+    ' CORREZIONE BUG CRONOLOGICO:
+    ' Il ciclo ora scansiona TUTTI i fogli visibili, non solo quelli a partire dal foglio attivo.
+    ' Questo assicura che il primo slot libero in assoluto venga sempre trovato.
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Visible = xlSheetVisible And ws.Name <> "ELENCO_COMMESSE" And ws.Name <> "Template_Mese" Then
+            Dim lastCol As Long: lastCol = ws.Cells(3, ws.Columns.Count).End(xlToLeft).Column
+            For col = 2 To lastCol
+                If oreAssegnate >= oreDaAssegnare Then Exit For
+                Dim cellaCorrente As Range: Set cellaCorrente = ws.Cells(rigaOperatore, col)
+                If cellaCorrente.Interior.ColorIndex = xlNone Then
+                    Dim dataOraCellaInizio As Date: dataOraCellaInizio = GetDataOraDaCella(cellaCorrente)
+                    
+                    If dataOraCellaInizio >= orarioPartenzaObbligatorio Then
+                        cellaCorrente.Interior.Color = coloreFase
+                        If Not cellaCorrente.Comment Is Nothing Then cellaCorrente.Comment.Delete
+                        cellaCorrente.AddComment noteText
+                        oreAssegnate = oreAssegnate + 1
+                        ' Aggiorna l'orario di fine dell'ultima ora assegnata
+                        ultimaOraFine = dataOraCellaInizio
+                    End If
+                End If
+            Next col
+        End If
+        If oreAssegnate >= oreDaAssegnare Then Exit For
+    Next ws
+    
+    Application.ScreenUpdating = True
+    
+    ' Restituisce l'orario di FINE (inizio + 1) dell'ultima ora assegnata
+    If ultimaOraFine > 0 Then
+        AssegnaOreACalendario = DateAdd("h", 1, ultimaOraFine)
+    Else
+        AssegnaOreACalendario = 0
+    End If
+End Function
+```
+
+---
+
+### **Azione 5: Creare il Pulsante "Assegna Ore"**
+
+1.  Torna a un foglio mensile (es. `Gennaio2026`).
+2.  Vai su **`Sviluppo`** -> **`Inserisci`** -> **`Pulsante`**.
+3.  Disegna un nuovo pulsante.
+4.  Assegna la macro **`AvviaAssegnazioneOre`** e clicca `OK`.
+5.  Rinomina il pulsante in **`Assegna Ore Selezionate`**.
+
+---
+
+**Completato!**
+
+Ora puoi usare la nuova funzionalità. Clicca su una cella con le ore da assegnare, poi sul pulsante "Assegna Ore Selezionate". La finestra ti darà tutte le info necessarie e la macro piazzerà le ore nel calendario rispettando le sequenze di lavoro.

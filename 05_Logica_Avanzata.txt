@@ -1,0 +1,708 @@
+################################################################################
+# File 05: Logica Avanzata e Funzioni di Supporto (Versione Corretta)
+################################################################################
+
+Ciao! Ora rendiamo il nostro gestionale "intelligente", aggiungendo tutte le funzioni di supporto necessarie per l'aggiornamento dinamico, il calcolo dello stato e la gestione dei colori.
+
+Questa fase prevede di **aggiungere** nuovo codice al `Modulo1` senza cancellare quello esistente.
+
+---
+
+### **Azione 1: Aggiungere le Funzioni di Supporto al `Modulo1`**
+
+1.  Apri l'editor di VBA (**`ALT + F11`**) e apri il **`Modulo1`**.
+2.  Scorri fino alla fine del codice già presente.
+3.  Copia l'intero blocco di codice qui sotto e **incollalo alla fine** del `Modulo1`.
+
+```vb
+'################################################################################
+'# Funzioni di Supporto per Stato e Tracciamento (Logica Avanzata)
+'################################################################################
+
+' --- NUOVA FUNZIONE PER GESTIRE L'ELIMINAZIONE AVANZATA ---
+' Rimuove ore dal calendario in base a criteri flessibili.
+' Se nomeFase = "" -> rimuove per tutte le fasi della commessa.
+' Se oreDaRimuovere = 0 -> rimuove tutte le ore trovate.
+Sub EliminaOre(nomeCommessa As String, Optional nomeFase As String = "", Optional oreDaRimuovere As Long = 0)
+    Dim ws As Worksheet
+    Dim celleTrovate() As Variant
+    Dim count As Long: count = 0
+
+    ' 1. Trova tutte le celle che corrispondono ai criteri
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Visible = xlSheetVisible And ws.Name <> "ELENCO_COMMESSE" And ws.Name <> "Template_Mese" Then
+            Dim cella As Range, r As Long, c As Long
+            Dim lastRow As Long: lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+            Dim lastCol As Long: lastCol = ws.Cells(3, ws.Columns.Count).End(xlToLeft).Column
+            If lastRow < 4 Or lastCol < 2 Then GoTo NextSheetElimina
+
+            For r = 4 To lastRow
+                For c = 2 To lastCol
+                    Set cella = ws.Cells(r, c)
+                    If Not cella.Comment Is Nothing Then
+                        Dim commentText As String: commentText = cella.Comment.Text
+                        If InStr(1, commentText, "Commessa: " & nomeCommessa, vbTextCompare) > 0 Then
+                            If nomeFase = "" Or InStr(1, commentText, "Fase: " & nomeFase, vbTextCompare) > 0 Then
+                                count = count + 1
+                                ReDim Preserve celleTrovate(1 To 2, 1 To count)
+                                Set celleTrovate(1, count) = cella
+                                celleTrovate(2, count) = GetDataOraDaCella(cella)
+                            End If
+                        End If
+                    End If
+                Next c
+            Next r
+        End If
+NextSheetElimina:
+    Next ws
+
+    If count = 0 Then Exit Sub
+
+    ' 2. Ordina le celle in ordine cronologico inverso (dalla più recente)
+    Dim i As Long, j As Long
+    For i = 1 To count - 1
+        For j = i + 1 To count
+            If celleTrovate(2, i) < celleTrovate(2, j) Then
+                Dim tempCell As Object, tempData As Date
+                Set tempCell = celleTrovate(1, i)
+                tempData = celleTrovate(2, i)
+                Set celleTrovate(1, i) = celleTrovate(1, j)
+                celleTrovate(2, i) = celleTrovate(2, j)
+                Set celleTrovate(1, j) = tempCell
+                celleTrovate(2, j) = tempData
+            End If
+        Next j
+    Next i
+
+    ' 3. Determina quante ore rimuovere ed esegui
+    Dim oreDaCancellare As Long
+    If oreDaRimuovere > 0 Then
+        oreDaCancellare = oreDaRimuovere
+    Else
+        oreDaCancellare = count ' Rimuovi tutto
+    End If
+    
+    For i = 1 To oreDaCancellare
+        If i > count Then Exit For
+        Dim cellaDaRimuovere As Range
+        Set cellaDaRimuovere = celleTrovate(1, i)
+        cellaDaRimuovere.ClearComments
+        cellaDaRimuovere.Interior.ColorIndex = xlNone
+    Next i
+End Sub
+
+
+' Rimuove le ore in eccesso dal calendario in ordine cronologico inverso
+Sub RimuoviOreInEccesso(nomeCommessa As String, nomeFase As String, oreDaRimuovere As Long)
+    If oreDaRimuovere <= 0 Then Exit Sub
+
+    Dim ws As Worksheet
+    Dim celleTrovate() As Variant
+    Dim count As Long
+    count = 0
+
+    ' 1. Trova tutte le celle corrispondenti e le loro date in tutti i fogli
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Visible = xlSheetVisible And ws.Name <> "ELENCO_COMMESSE" And ws.Name <> "Template_Mese" Then
+            Dim cella As Range, r As Long, c As Long
+            Dim lastRow As Long: lastRow = ws.Cells(25, "A").End(xlUp).Row
+            Dim lastCol As Long: lastCol = ws.Cells(3, ws.Columns.Count).End(xlToLeft).Column
+            If lastRow < 4 Or lastCol < 2 Then GoTo NextSheet
+
+            For r = 4 To lastRow
+                For c = 2 To lastCol
+                    Set cella = ws.Cells(r, c)
+                    If Not cella.Comment Is Nothing Then
+                        If InStr(1, cella.Comment.Text, "Commessa: " & nomeCommessa, vbTextCompare) > 0 And _
+                           InStr(1, cella.Comment.Text, "Fase: " & nomeFase, vbTextCompare) > 0 Then
+                            count = count + 1
+                            ReDim Preserve celleTrovate(1 To 2, 1 To count)
+                            Set celleTrovate(1, count) = cella
+                            celleTrovate(2, count) = GetDataOraDaCella(cella)
+                        End If
+                    End If
+                Next c
+            Next r
+        End If
+NextSheet:
+    Next ws
+
+    If count = 0 Then Exit Sub
+
+    ' 2. Ordina le celle in ordine cronologico inverso (dalla più recente)
+    Dim i As Long, j As Long
+    For i = 1 To count - 1
+        For j = i + 1 To count
+            If celleTrovate(2, i) < celleTrovate(2, j) Then
+                Dim tempCell As Object, tempData As Date
+                Set tempCell = celleTrovate(1, i)
+                tempData = celleTrovate(2, i)
+                Set celleTrovate(1, i) = celleTrovate(1, j)
+                celleTrovate(2, i) = celleTrovate(2, j)
+                Set celleTrovate(1, j) = tempCell
+                celleTrovate(2, j) = tempData
+            End If
+        Next j
+    Next i
+
+    ' 3. Rimuovi le ore in eccesso
+    For i = 1 To oreDaRimuovere
+        If i > count Then Exit For
+        Dim cellaDaRimuovere As Range
+        Set cellaDaRimuovere = celleTrovate(1, i)
+        cellaDaRimuovere.ClearComments
+        cellaDaRimuovere.Interior.ColorIndex = xlNone
+    Next i
+End Sub
+
+
+' Determina lo stato globale di una commessa
+Function GetStatoCommessa(numCommessa As String) As String
+    Dim elencoSheet As Worksheet, rigaCommessa As Range, oreTotali As Double, oreAssegnate As Double
+    Set elencoSheet = ThisWorkbook.Worksheets("ELENCO_COMMESSE")
+    Set rigaCommessa = elencoSheet.Range("A:A").Find(numCommessa, LookIn:=xlValues, LookAt:=xlWhole)
+    
+    If rigaCommessa Is Nothing Then
+        GetStatoCommessa = "[SCONOSCIUTO]"
+        Exit Function
+    End If
+    
+    Dim c As Long, hasHours As Boolean
+    For c = 5 To elencoSheet.Cells(rigaCommessa.Row, elencoSheet.Columns.Count).End(xlToLeft).Column Step 3
+        If IsNumeric(elencoSheet.Cells(rigaCommessa.Row, c).Value) And elencoSheet.Cells(rigaCommessa.Row, c).Value > 0 Then
+            hasHours = True
+            Dim nomeFase As String
+            nomeFase = elencoSheet.Cells(1, c).Value
+            oreTotali = oreTotali + elencoSheet.Cells(rigaCommessa.Row, c).Value
+            oreAssegnate = oreAssegnate + ContaOreAssegnate(rigaCommessa.Offset(0, 1).Value, nomeFase)
+        End If
+    Next c
+    
+    If Not hasHours Then
+        GetStatoCommessa = "[VUOTA]"
+    ElseIf oreAssegnate = 0 Then
+        GetStatoCommessa = "[NON AVVIATA]"
+    ElseIf oreAssegnate >= oreTotali Then
+        GetStatoCommessa = "[COMPLETATA]"
+    Else
+        GetStatoCommessa = "[IN CORSO]"
+    End If
+End Function
+
+
+' Funzione di utilità per ordinare l'array delle commesse per data
+Public Sub BubbleSort(arr() As Variant, colonnaDiOrdinamento As Long)
+    Dim i As Long, j As Long, temp As Variant, n As Long
+    n = UBound(arr, 1)
+    For i = 1 To n - 1
+        For j = 1 To n - i
+            If arr(j, colonnaDiOrdinamento) > arr(j + 1, colonnaDiOrdinamento) Then
+                Dim k As Long
+                For k = 1 To UBound(arr, 2)
+                    temp = arr(j, k)
+                    arr(j, k) = arr(j + 1, k)
+                    arr(j + 1, k) = temp
+                Next k
+            End If
+        Next j
+    Next i
+End Sub
+
+
+' Conta quante ore sono state assegnate nel calendario per una data fase/commessa
+Function ContaOreAssegnate(nomeCommessa As String, nomeFase As String) As Double
+    Dim ws As Worksheet, commentText As String, count As Double, cella As Range
+    Dim lastRow As Long, lastCol As Long, r As Long, c As Long
+    count = 0
+    Application.ScreenUpdating = False
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Visible = xlSheetVisible And ws.Name <> "ELENCO_COMMESSE" And ws.Name <> "Template_Mese" Then
+            lastRow = ws.Cells(25, "A").End(xlUp).Row
+            lastCol = ws.Cells(3, ws.Columns.Count).End(xlToLeft).Column
+            
+            If lastRow >= 4 And lastCol >= 2 Then
+                For r = 4 To lastRow
+                    For c = 2 To lastCol
+                        Set cella = ws.Cells(r, c)
+                        If Not cella.Comment Is Nothing Then
+                            commentText = cella.Comment.Text
+                            If InStr(1, commentText, "Commessa: " & nomeCommessa, vbTextCompare) > 0 And InStr(1, commentText, "Fase: " & nomeFase, vbTextCompare) > 0 Then
+                                count = count + 1
+                            End If
+                        End If
+                    Next c
+                Next r
+            End If
+        End If
+    Next ws
+    Application.ScreenUpdating = True
+    ContaOreAssegnate = count
+End Function
+
+' Aggiorna il colore della cella nella tabella riepilogativa (rosso/arancione/verde)
+Sub AggiornaColoreCellaStato(targetCell As Range)
+    If targetCell Is Nothing Then Exit Sub
+    Dim oreTotali As Double: oreTotali = targetCell.Value
+    If Not IsNumeric(oreTotali) Or oreTotali <= 0 Then
+        targetCell.Interior.ColorIndex = xlNone: Exit Sub
+    End If
+    Dim nomeCommessa As String: nomeCommessa = targetCell.Worksheet.Cells(27, targetCell.Column).Value
+    Dim nomeFase As String: nomeFase = targetCell.Worksheet.Cells(targetCell.Row, 1).Value
+    Dim oreAssegnate As Double: oreAssegnate = ContaOreAssegnate(nomeCommessa, nomeFase)
+    
+    If oreAssegnate <= 0 Then
+        targetCell.Interior.Color = RGB(255, 105, 97) ' Rosso
+    ElseIf oreAssegnate >= oreTotali Then
+        targetCell.Interior.Color = RGB(119, 221, 119) ' Verde
+    Else
+        targetCell.Interior.Color = RGB(253, 221, 99) ' Arancione
+    End If
+End Sub
+
+' LOGICA DI LETTURA DATA (Versione Definitiva e Blindata)
+Private Function GetDataOraDaCella(ByVal cella As Range) As Date
+    On Error GoTo Errore
+    Dim dataGiorno As Date
+    dataGiorno = cella.Worksheet.Cells(2, cella.Column).MergeArea.Cells(1, 1).Value
+    ' Ora restituisce l'orario di INIZIO della cella (es. 8:00, 9:00, etc.)
+    GetDataOraDaCella = dataGiorno + TimeSerial(7 + cella.Worksheet.Cells(3, cella.Column).Value, 0, 0)
+    Exit Function
+Errore:
+    GetDataOraDaCella = 0
+End Function
+
+' Trova la data/ora dell'ultima ora assegnata per una fase, per gestire le precedenze
+Function TrovaUltimaDataOraAssegnata(nomeCommessa As String, ByVal nomeFase As String) As Date
+    Dim ws As Worksheet, cella As Range, commentText As String, ultimaData As Date
+    Dim lastRow As Long, lastCol As Long, r As Long, c As Long
+    ultimaData = 0
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Visible = xlSheetVisible And ws.Name <> "ELENCO_COMMESSE" And ws.Name <> "Template_Mese" Then
+            lastRow = ws.Cells(25, "A").End(xlUp).Row
+            lastCol = ws.Cells(3, ws.Columns.Count).End(xlToLeft).Column
+            
+            If lastRow >= 4 And lastCol >= 2 Then
+                For r = 4 To lastRow
+                    For c = 2 To lastCol
+                        Set cella = ws.Cells(r, c)
+                        If Not cella.Comment Is Nothing Then
+                            commentText = cella.Comment.Text
+                            If InStr(1, commentText, "Commessa: " & nomeCommessa, vbTextCompare) > 0 And InStr(1, commentText, "Fase: " & nomeFase, vbTextCompare) > 0 Then
+                                Dim dataCella As Date: dataCella = GetDataOraDaCella(cella)
+                                If dataCella > ultimaData Then ultimaData = dataCella
+                            End If
+                        End If
+                    Next c
+                Next r
+            End If
+        End If
+    Next ws
+    
+    ' Se non è stata trovata alcuna data, restituisce 0.
+    ' Altrimenti, restituisce l'orario di FINE dell'ultima ora (inizio + 1).
+    If ultimaData > 0 Then
+        TrovaUltimaDataOraAssegnata = DateAdd("h", 1, ultimaData)
+    Else
+        TrovaUltimaDataOraAssegnata = 0
+    End If
+End Function
+
+' Aggiorna lo stato nel foglio ELENCO_COMMESSE quando una fase è completata
+Sub AggiornaStatoCommessaInElenco(targetCell As Range)
+    If targetCell Is Nothing Then Exit Sub
+    Dim elencoSheet As Worksheet: Set elencoSheet = ThisWorkbook.Worksheets("ELENCO_COMMESSE")
+    Dim nomeCommessa As String: nomeCommessa = targetCell.Worksheet.Cells(27, targetCell.Column).Value
+    Dim nomeFase As String: nomeFase = targetCell.Worksheet.Cells(targetCell.Row, 1).Value
+    Dim oreTotali As Double: oreTotali = CDbl(targetCell.Value)
+    Dim oreAssegnate As Double: oreAssegnate = ContaOreAssegnate(nomeCommessa, nomeFase)
+    
+    If oreAssegnate >= oreTotali Then
+        Dim dataCompletamento As Date: dataCompletamento = TrovaUltimaDataOraAssegnata(nomeCommessa, nomeFase)
+        If dataCompletamento > 0 Then
+            Dim rigaCommessa As Range: Set rigaCommessa = elencoSheet.Range("B:B").Find(nomeCommessa, LookIn:=xlValues, LookAt:=xlWhole)
+            If Not rigaCommessa Is Nothing Then
+                Dim colFase As Variant: colFase = Application.Match("Fine lavorazione " & nomeFase, elencoSheet.Rows(1), 0)
+                If Not IsError(colFase) Then
+                    elencoSheet.Cells(rigaCommessa.Row, colFase).Value = dataCompletamento
+                    elencoSheet.Cells(rigaCommessa.Row, colFase).NumberFormat = "dd/mm/yyyy hh:mm"
+                End If
+                Call VerificaCompletamentoTotaleCommessa(rigaCommessa.Row)
+            End If
+        End If
+    End If
+End Sub
+
+' --- MOTORE DI RICOMPATTAZIONE CALENDARIO ---
+Sub RicompattaCalendario()
+    ' --- Blocco Dichiarazioni Variabili ---
+    Dim lavoriDaRiassegnare As Object
+    Dim ws As Worksheet, cella As Range, r As Long, c As Long
+    Dim lastRow As Long, lastCol As Long
+    Dim chiaveLavoro As String
+    Dim elencoSheet As Worksheet
+    Dim fasiOrdine As Variant
+    Dim arrayLavori() As Variant
+    Dim i As Long, j As Long, k As Long
+    Dim lavoro As Variant, parts() As String
+    Dim commessaName As String, faseName As String, operatoreName As String, oreDaRiassegnare As Double
+    Dim rigaCommessa As Range, colConsegna As Variant
+    Dim indiceFase1 As Long, indiceFase2 As Long
+    Dim temp As Variant
+    Dim rigaOperatore As Range, orarioDiPartenza As Date, idxFase As Variant
+    Dim fasePrecedente As String, fasePrecedenteEsiste As Boolean, x As Long, oraFinePrecedente As Date
+    
+    ' --- Inizializzazioni e Logica ---
+    Set lavoriDaRiassegnare = CreateObject("Scripting.Dictionary")
+    
+    ' FASE 1: Raccogli tutti i lavori pianificati in memoria
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Visible = xlSheetVisible And ws.Name <> "ELENCO_COMMESSE" And ws.Name <> "Template_Mese" Then
+            lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+            lastCol = ws.Cells(3, ws.Columns.Count).End(xlToLeft).Column
+            If lastRow < 4 Or lastCol < 2 Then GoTo NextSheetRicCompatta
+
+            For r = 4 To lastRow
+                For c = 2 To lastCol
+                    Set cella = ws.Cells(r, c)
+                    If Not cella.Comment Is Nothing Then
+                        commessaName = Split(Split(cella.Comment.Text, "Commessa: ")(1), vbNewLine)(0)
+                        faseName = Split(Split(cella.Comment.Text, "Fase: ")(1), vbNewLine)(0)
+                        operatoreName = ws.Cells(r, "A").Value
+                        chiaveLavoro = commessaName & "|" & faseName & "|" & operatoreName
+                        
+                        If lavoriDaRiassegnare.Exists(chiaveLavoro) Then
+                            lavoriDaRiassegnare(chiaveLavoro) = lavoriDaRiassegnare(chiaveLavoro) + 1
+                        Else
+                            lavoriDaRiassegnare.Add chiaveLavoro, 1
+                        End If
+                    End If
+                Next c
+            Next r
+        End If
+NextSheetRicCompatta:
+    Next ws
+    
+    ' FASE 2: Pulisci completamente il calendario
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Visible = xlSheetVisible And ws.Name <> "ELENCO_COMMESSE" And ws.Name <> "Template_Mese" Then
+            lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+            lastCol = ws.Cells(3, ws.Columns.Count).End(xlToLeft).Column
+            If lastRow >= 4 And lastCol >= 2 Then
+                ws.Range(ws.Cells(4, 2), ws.Cells(lastRow, lastCol)).ClearComments
+                ws.Range(ws.Cells(4, 2), ws.Cells(lastRow, lastCol)).Interior.ColorIndex = xlNone
+            End If
+        End If
+    Next ws
+    
+    ' FASE 3: Riassegna tutto, rispettando le precedenze E la data di consegna
+    If lavoriDaRiassegnare.Count = 0 Then Exit Sub
+    
+    Set elencoSheet = ThisWorkbook.Worksheets("ELENCO_COMMESSE")
+    fasiOrdine = Array("ORE SVILUPPO", "ORE LASER 1", "ORE LASER 2", "ORE PUNZONATURA", "ORE TAGLIO", "ORE SBAVATURA/ SATINATURA", "ORE PIEGA", "ORE FORATURA/ MASCHIATURA / FRESATURA/ TORNITURA", "ORE CALANDRATURA/ CURVATURA", "ORE ASSEMBLAGGIO", "ORE COLLAUDO")
+    
+    ' Converti il dizionario in un array per poterlo ordinare
+    ReDim arrayLavori(1 To lavoriDaRiassegnare.Count, 1 To 5) ' Commessa, Fase, Operatore, Ore, DataConsegna
+    
+    i = 1
+    For Each lavoro In lavoriDaRiassegnare.Keys
+        parts = Split(lavoro, "|")
+        arrayLavori(i, 1) = parts(0) ' Commessa
+        arrayLavori(i, 2) = parts(1) ' Fase
+        arrayLavori(i, 3) = parts(2) ' Operatore
+        arrayLavori(i, 4) = lavoriDaRiassegnare(lavoro) ' Ore
+        
+        ' Trova la data di consegna per l'ordinamento
+        Set rigaCommessa = elencoSheet.Range("B:B").Find(parts(0), LookIn:=xlValues, LookAt:=xlWhole)
+        If Not rigaCommessa Is Nothing Then
+            colConsegna = Application.Match("DATA CONSEGNA RICHIESTA", elencoSheet.Rows(1), 0)
+            If Not IsError(colConsegna) And IsDate(elencoSheet.Cells(rigaCommessa.Row, colConsegna).Value) Then
+                arrayLavori(i, 5) = CDate(elencoSheet.Cells(rigaCommessa.Row, colConsegna).Value)
+            Else
+                arrayLavori(i, 5) = DateSerial(9999, 12, 31)
+            End If
+        Else
+            arrayLavori(i, 5) = DateSerial(9999, 12, 31)
+        End If
+        i = i + 1
+    Next lavoro
+    
+    ' Esegui un ordinamento multi-livello: 1. Data Consegna, 2. Nome Commessa, 3. Indice Fase
+    For i = 1 To UBound(arrayLavori, 1) - 1
+        For j = i + 1 To UBound(arrayLavori, 1)
+            indiceFase1 = Application.Match(arrayLavori(i, 2), fasiOrdine, 0)
+            indiceFase2 = Application.Match(arrayLavori(j, 2), fasiOrdine, 0)
+            
+            ' Criterio 1: Data di consegna
+            If arrayLavori(i, 5) > arrayLavori(j, 5) Then
+                ' Swap
+                For k = 1 To 5: temp = arrayLavori(i, k): arrayLavori(i, k) = arrayLavori(j, k): arrayLavori(j, k) = temp: Next k
+            ElseIf arrayLavori(i, 5) = arrayLavori(j, 5) Then
+                ' Criterio 2: Nome Commessa
+                If arrayLavori(i, 1) > arrayLavori(j, 1) Then
+                    ' Swap
+                    For k = 1 To 5: temp = arrayLavori(i, k): arrayLavori(i, k) = arrayLavori(j, k): arrayLavori(j, k) = temp: Next k
+                ' Criterio 3: Indice Fase (se commessa è la stessa)
+                ElseIf arrayLavori(i, 1) = arrayLavori(j, 1) And indiceFase1 > indiceFase2 Then
+                    ' Swap
+                    For k = 1 To 5: temp = arrayLavori(i, k): arrayLavori(i, k) = arrayLavori(j, k): arrayLavori(j, k) = temp: Next k
+                End If
+            End If
+        Next j
+    Next i
+
+    ' Esegui riassegnazione in ordine di priorità
+    Dim orariFineFasi As Object
+    Set orariFineFasi = CreateObject("Scripting.Dictionary")
+
+    For i = 1 To UBound(arrayLavori, 1)
+        commessaName = arrayLavori(i, 1)
+        faseName = arrayLavori(i, 2)
+        operatoreName = arrayLavori(i, 3)
+        oreDaRiassegnare = arrayLavori(i, 4)
+        
+        ' Cerca l'operatore nel primo foglio calendario (la riga è la stessa per tutti)
+        Set rigaOperatore = ThisWorkbook.Worksheets(Format(DateSerial(2026, 1, 1), "MMMMYYYY")).Range("A:A").Find(operatoreName, LookIn:=xlValues, LookAt:=xlWhole)
+        
+        If Not rigaOperatore Is Nothing Then
+            ' NUOVA LOGICA: Calcola orario di partenza leggendo dal dizionario in memoria
+            orarioDiPartenza = 0
+            idxFase = Application.Match(faseName, fasiOrdine, 0)
+            
+            If Not IsError(idxFase) And idxFase > 1 Then
+                For j = (idxFase - 1) To 1 Step -1
+                    fasePrecedente = CStr(fasiOrdine(j - 1))
+                    Dim chiaveDizionario As String: chiaveDizionario = commessaName & "|" & fasePrecedente
+                    
+                    If orariFineFasi.Exists(chiaveDizionario) Then
+                        orarioDiPartenza = orariFineFasi(chiaveDizionario)
+                        Exit For
+                    End If
+                Next j
+            End If
+            
+            ' Riassegna le ore e cattura l'orario di fine
+            Dim fineEffettiva As Date
+            fineEffettiva = AssegnaOreACalendario(rigaOperatore.Row, oreDaRiassegnare, faseName, commessaName, orarioDiPartenza, Nothing)
+            
+            ' Salva l'orario di fine nel dizionario per le fasi successive
+            Dim chiaveSalvataggio As String: chiaveSalvataggio = commessaName & "|" & faseName
+            If orariFineFasi.Exists(chiaveSalvataggio) Then
+                ' Se un altro operatore ha finito dopo, aggiorna all'orario più recente
+                If fineEffettiva > orariFineFasi(chiaveSalvataggio) Then
+                    orariFineFasi(chiaveSalvataggio) = fineEffettiva
+                End If
+            Else
+                orariFineFasi.Add chiaveSalvataggio, fineEffettiva
+            End If
+        End If
+    Next i
+End Sub
+
+
+' --- NUOVA MACRO PER APRIRE LA FINESTRA DI GESTIONE ---
+Sub ApriGestioneOre()
+    frmGestioneOre.Show
+End Sub
+
+
+' Controlla se tutte le fasi di una commessa sono completate e, in caso, imposta la data di consegna effettiva
+Private Sub VerificaCompletamentoTotaleCommessa(riga As Long)
+    Dim elencoSheet As Worksheet: Set elencoSheet = ThisWorkbook.Worksheets("ELENCO_COMMESSE")
+    Dim tutteFasiCompletate As Boolean: tutteFasiCompletate = True
+    Dim ultimaDataConsegna As Date: ultimaDataConsegna = 0
+    Dim c As Long
+    
+    For c = 5 To elencoSheet.Cells(1, elencoSheet.Columns.Count).End(xlToLeft).Column Step 3
+        If IsNumeric(elencoSheet.Cells(riga, c).Value) And elencoSheet.Cells(riga, c).Value > 0 Then
+            If Not IsDate(elencoSheet.Cells(riga, c + 1).Value) Then
+                tutteFasiCompletate = False
+                Exit For
+            Else
+                If elencoSheet.Cells(riga, c + 1).Value > ultimaDataConsegna Then
+                    ultimaDataConsegna = elencoSheet.Cells(riga, c + 1).Value
+                End If
+            End If
+        End If
+    Next c
+    
+    If tutteFasiCompletate And ultimaDataConsegna > 0 Then
+        Dim colConsegna As Variant: colConsegna = Application.Match("DATA CONSEGNA EFFETTIVA", elencoSheet.Rows(1), 0)
+        If Not IsError(colConsegna) Then
+            elencoSheet.Cells(riga, colConsegna).Value = ultimaDataConsegna
+            elencoSheet.Cells(riga, colConsegna).NumberFormat = "dd/mm/yyyy hh:mm"
+        End If
+    End If
+End Sub
+
+```
+---
+
+### **Azione 2: Creare la Nuova Finestra `frmGestioneOre`**
+
+Questa nuova finestra ci permetterà di eliminare ore e ricompattare il calendario.
+
+1.  Nell'editor VBA, vai su **`Inserisci`** -> **`UserForm`**.
+2.  Nelle "Proprietà", imposta:
+    -   `(Name)`: **`frmGestioneOre`**
+    -   `Caption`: **`Gestione ed Eliminazione Ore`**
+    -   `Width`: **`450`**
+    -   `Height`: **`350`**
+
+3.  **Aggiungi i seguenti controlli:**
+    -   `Etichetta`: `Caption` -> **`1. Seleziona Commessa:`**
+    -   `Casella di riepilogo (ListBox)`: `(Name)` -> **`lstCommessePianificate`**
+    -   `Etichetta`: `Caption` -> **`2. Seleziona Fase:`**
+    -   `Casella di riepilogo (ListBox)`: `(Name)` -> **`lstFasiPianificate`**
+    -   `Etichetta`: `Caption` -> **`Ore da rimuovere (opzionale):`**
+    -   `Casella di testo (TextBox)`: `(Name)` -> **`txtOreDaRimuovere`**
+    -   `Pulsante di comando`: `(Name)` -> **`cmdEliminaCommessa`**, `Caption` -> **`Elimina Tutta la Commessa`**
+    -   `Pulsante di comando`: `(Name)` -> **`cmdEliminaFase`**, `Caption` -> **`Elimina Fase Selezionata`**
+    -   `Pulsante di comando`: `(Name)` -> **`cmdRimuoviOre`**, `Caption` -> **`Rimuovi Ore`**
+    -   `Pulsante di comando`: `(Name)` -> **`cmdAnnulla`**, `Caption` -> **`Annulla`**
+
+### **Azione 3: Inserire il Codice per `frmGestioneOre`**
+
+1.  Fai doppio clic su un'area vuota della nuova `frmGestioneOre`.
+2.  Incolla il seguente codice:
+
+```vb
+Option Explicit
+
+' Dizionario a livello di UserForm per memorizzare la mappa Commesse -> Fasi
+Private commessePianificate As Object
+
+Private Sub UserForm_Initialize()
+    ' Scansiona una volta tutti i calendari e costruisce una mappa di commesse e fasi
+    Set commessePianificate = CreateObject("Scripting.Dictionary")
+    
+    Dim ws As Worksheet, cella As Range, r As Long, c As Long
+    Dim lastRow As Long, lastCol As Long
+    
+    Application.ScreenUpdating = False
+    
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Visible = xlSheetVisible And ws.Name <> "ELENCO_COMMESSE" And ws.Name <> "Template_Mese" Then
+            lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+            lastCol = ws.Cells(3, ws.Columns.Count).End(xlToLeft).Column
+            If lastRow < 4 Or lastCol < 2 Then GoTo NextSheet
+
+            For r = 4 To lastRow
+                For c = 2 To lastCol
+                    Set cella = ws.Cells(r, c)
+                    If Not cella.Comment Is Nothing Then
+                        Dim commentText As String: commentText = cella.Comment.Text
+                        Dim commessaName As String: commessaName = Split(Split(commentText, "Commessa: ")(1), vbNewLine)(0)
+                        Dim faseName As String: faseName = Split(Split(commentText, "Fase: ")(1), vbNewLine)(0)
+                        
+                        ' Aggiunge la commessa se non esiste
+                        If Not commessePianificate.Exists(commessaName) Then
+                            commessePianificate.Add commessaName, CreateObject("Scripting.Dictionary")
+                        End If
+                        
+                        ' Aggiunge la fase alla commessa
+                        commessePianificate(commessaName)(faseName) = ""
+                    End If
+                Next c
+            Next r
+        End If
+NextSheet:
+    Next ws
+    
+    Application.ScreenUpdating = True
+    
+    ' Popola la lista delle commesse
+    If commessePianificate.Count > 0 Then
+        Me.lstCommessePianificate.List = commessePianificate.Keys
+    Else
+        Me.lstCommessePianificate.AddItem "Nessuna commessa pianificata."
+        ' Disabilita i controlli se non c'è nulla da fare
+        Me.cmdEliminaCommessa.Enabled = False
+        Me.cmdEliminaFase.Enabled = False
+        Me.cmdRimuoviOre.Enabled = False
+    End If
+End Sub
+
+Private Sub lstCommessePianificate_Click()
+    ' Quando si clicca una commessa, popola la lista delle sue fasi dalla mappa in memoria
+    Me.lstFasiPianificate.Clear
+    
+    If Me.lstCommessePianificate.ListIndex = -1 Then Exit Sub
+    
+    Dim commessaSelezionata As String
+    commessaSelezionata = Me.lstCommessePianificate.Value
+    
+    If commessePianificate.Exists(commessaSelezionata) Then
+        Me.lstFasiPianificate.List = commessePianificate(commessaSelezionata).Keys
+    End If
+End Sub
+
+Private Sub cmdAnnulla_Click()
+    Unload Me
+End Sub
+
+Private Sub cmdEliminaCommessa_Click()
+    If Me.lstCommessePianificate.ListIndex = -1 Then
+        MsgBox "Seleziona una commessa.", vbInformation
+        Exit Sub
+    End If
+    
+    Dim commessa As String: commessa = Me.lstCommessePianificate.Value
+    If MsgBox("Sei sicuro di voler eliminare TUTTE le ore per la commessa '" & commessa & "' e ricompattare il calendario?", vbYesNo + vbQuestion) = vbNo Then Exit Sub
+    
+    Application.ScreenUpdating = False
+    Call EliminaOre(commessa)
+    Call RicompattaCalendario
+    Application.ScreenUpdating = True
+    MsgBox "Commessa eliminata e calendario in fase di ricalcolo.", vbInformation
+    Unload Me
+End Sub
+
+Private Sub cmdEliminaFase_Click()
+    If Me.lstCommessePianificate.ListIndex = -1 Or Me.lstFasiPianificate.ListIndex = -1 Then
+        MsgBox "Seleziona una commessa E una fase.", vbInformation
+        Exit Sub
+    End If
+    
+    Dim commessa As String: commessa = Me.lstCommessePianificate.Value
+    Dim fase As String: fase = Me.lstFasiPianificate.Value
+    If MsgBox("Sei sicuro di voler eliminare TUTTE le ore per la fase '" & fase & "' e ricompattare il calendario?", vbYesNo + vbQuestion) = vbNo Then Exit Sub
+    
+    Application.ScreenUpdating = False
+    Call EliminaOre(commessa, fase)
+    Call RicompattaCalendario
+    Application.ScreenUpdating = True
+    MsgBox "Fase eliminata e calendario in fase di ricalcolo.", vbInformation
+    Unload Me
+End Sub
+
+Private Sub cmdRimuoviOre_Click()
+    If Me.lstCommessePianificate.ListIndex = -1 Or Me.lstFasiPianificate.ListIndex = -1 Then
+        MsgBox "Seleziona una commessa E una fase.", vbInformation
+        Exit Sub
+    End If
+    
+    If Not IsNumeric(Me.txtOreDaRimuovere.Value) Or CLng(Me.txtOreDaRimuovere.Value) <= 0 Then
+        MsgBox "Inserisci un numero valido di ore da rimuovere.", vbInformation
+        Exit Sub
+    End If
+    
+    Dim commessa As String: commessa = Me.lstCommessePianificate.Value
+    Dim fase As String: fase = Me.lstFasiPianificate.Value
+    Dim ore As Long: ore = CLng(Me.txtOreDaRimuovere.Value)
+    
+    If MsgBox("Sei sicuro di voler rimuovere le ultime " & ore & " ore per la fase '" & fase & "' e ricompattare il calendario?", vbYesNo + vbQuestion) = vbNo Then Exit Sub
+    
+    Application.ScreenUpdating = False
+    Call EliminaOre(commessa, fase, ore)
+    Call RicompattaCalendario
+    Application.ScreenUpdating = True
+    MsgBox "Ore rimosse e calendario in fase di ricalcolo.", vbInformation
+    Unload Me
+End Sub
+```
+
+---
+
+**Completato!**
+
+Hai aggiunto al tuo progetto tutte le funzioni "intelligenti" necessarie. Ora il tuo gestionale è in grado di gestire l'intero flusso di lavoro in modo dinamico e interattivo.

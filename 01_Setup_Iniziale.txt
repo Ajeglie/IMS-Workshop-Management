@@ -1,0 +1,129 @@
+################################################################################
+# File 01: Setup Iniziale dei Fogli di Lavoro
+################################################################################
+
+Ciao! Benvenuto alla prima fase della creazione del tuo sistema di gestione dei flussi di lavoro in Excel.
+
+Questo file ti guiderà nella preparazione della struttura di base del tuo file di lavoro. È fondamentale seguire questi passaggi con precisione, poiché le macro che creeremo in seguito si baseranno su questa struttura.
+
+---
+
+### **Azione 1: Creare e Salvare il File Excel**
+
+1.  Apri una nuova cartella di lavoro in Microsoft Excel.
+2.  Salva subito il file. Come nome, puoi usare "Gestionale_Commesse" o quello che preferisci.
+3.  **IMPORTANTE:** Quando salvi, scegli come tipo di file **"Cartella di lavoro con attivazione macro di Excel (*.xlsm)"**. Questo è essenziale per poter utilizzare le macro che andremo a scrivere.
+
+---
+
+### **Azione 2: Preparare il Foglio "ELENCO_COMMESSE"**
+
+Questo foglio sarà il database centrale dove inserirai tutte le tue commesse e le relative informazioni.
+
+1.  Rinomina il primo foglio di lavoro. Fai doppio clic sulla linguetta in basso a sinistra che dice "Foglio1" e cambiala in **"ELENCO_COMMESSE"**.
+
+2.  Ora, inserisci le seguenti intestazioni di colonna nella **riga 1**. Ti consiglio di fare copia-incolla per evitare errori.
+
+    - `A1`: N°
+    - `B1`: COMMESSA
+    - `C1`: CLIENTE
+    - `D1`: Note
+
+    A seguire, inserisci le fasi di lavoro. Ogni fase è composta da 3 colonne: le ore stimate, lo stato di completamento e la priorità.
+
+    - `E1`: ORE SVILUPPO
+    - `F1`: Fine lavorazione ORE SVILUPPO
+    - `G1`: PRIORITA ORE SVILUPPO
+
+    - `H1`: ORE LASER 1
+    - `I1`: Fine lavorazione ORE LASER 1
+    - `J1`: PRIORITA ORE LASER 1
+
+    - `K1`: ORE LASER 2
+    - `L1`: Fine lavorazione ORE LASER 2
+    - `M1`: PRIORITA ORE LASER 2
+
+    - `N1`: ORE PUNZONATURA
+    - `O1`: Fine lavorazione ORE PUNZONATURA
+    - `P1`: PRIORITA ORE PUNZONATURA
+
+    - `Q1`: ORE TAGLIO
+    - `R1`: Fine lavorazione ORE TAGLIO
+    - `S1`: PRIORITA ORE TAGLIO
+
+    - `T1`: ORE SBAVATURA/ SATINATURA
+    - `U1`: Fine lavorazione ORE SBAVATURA/ SATINATURA
+    - `V1`: PRIORITA ORE SBAVATURA/ SATINATURA
+
+    - `W1`: ORE PIEGA
+    - `X1`: Fine lavorazione ORE PIEGA
+    - `Y1`: PRIORITA ORE PIEGA
+
+    - `Z1`: ORE FORATURA/ MASCHIATURA / FRESATURA/ TORNITURA
+    - `AA1`: Fine lavorazione ORE FORATURA/ MASCHIATURA / FRESATURA/ TORNITURA
+    - `AB1`: PRIORITA ORE FORATURA/ MASCHIATURA / FRESATURA/ TORNITURA
+
+    - `AC1`: ORE CALANDRATURA/ CURVATURA
+    - `AD1`: Fine lavorazione ORE CALANDRATURA/ CURVATURA
+    - `AE1`: PRIORITA ORE CALANDRATURA/ CURVATURA
+
+    - `AF1`: ORE ASSEMBLAGGIO
+    - `AG1`: Fine lavorazione ORE ASSEMBLAGGIO
+    - `AH1`: PRIORITA ORE ASSEMBLAGGIO
+
+    - `AI1`: ORE COLLAUDO
+    - `AJ1`: Fine lavorazione ORE COLLAUDO
+    - `AK1`: PRIORITA ORE COLLAUDO
+
+    Infine, le colonne conclusive:
+
+    - `AL1`: DATA CONSEGNA RICHIESTA
+    - `AM1`: Fine lavorazione TOTALE
+    - `AN1`: DATA CONSEGNA EFFETTIVA
+
+3.  **Formattazione (Consigliata):**
+    - Seleziona tutta la riga 1 e applica il **Grassetto**.
+    - Fai doppio clic sulla linea di separazione tra le colonne (es. tra A e B, B e C) per adattare automaticamente la larghezza.
+
+---
+
+### **Azione 3: Creare un Foglio "Template_Mese"**
+
+Questo foglio servirà da modello per creare i fogli di tutti i mesi. In seguito lo potremo nascondere per non fare confusione.
+
+1.  Crea un nuovo foglio di lavoro cliccando sul simbolo `+` in basso.
+2.  Rinomina questo nuovo foglio in **"Template_Mese"**.
+
+3.  Inserisci i seguenti testi nelle celle indicate:
+    - `A1`: Carico di lavoro officina
+    - `V1`: Settimana Dal
+    - `X1`: al
+
+4.  Nella colonna A, imposta la sezione degli operatori:
+    - `A3`: OPERATORE
+    - Da `A4` a `A13`, inserisci i nomi dei tuoi operatori (es. Mario Rossi, Luca Bianchi, ecc.). Puoi aggiungerne o toglierne in futuro, ma per ora partiamo con 10.
+
+5.  Sotto la zona che sarà occupata dal calendario, imposta la tabella riepilogativa delle commesse. Questa sarà la struttura statica che verrà popolata dalle macro.
+    - `A26`: Cliente
+    - `A27`: Commessa
+    - `A28`: ORE SVILUPPO
+    - `A29`: ORE LASER 1
+    - `A30`: ORE LASER 2
+    - `A31`: ORE PUNZONATURA
+    - `A32`: ORE TAGLIO
+    - `A33`: ORE SBAVATURA/ SATINATURA
+    - `A34`: ORE PIEGA
+    - `A35`: ORE FORATURA/ MASCHIATURA / FRESATURA/ TORNITURA
+    - `A36`: ORE CALANDRATURA/ CURVATURA
+    - `A37`: ORE ASSEMBLAGGIO
+    - `A38`: ORE COLLAUDO
+
+6.  **Formattazione (Consigliata):**
+    - Metti in **Grassetto** i testi in `A1`, `V1`, `X1`, `A3` e l'intervallo da `A26` a `A38`.
+
+---
+
+**Completato!**
+
+Hai preparato con successo la struttura di base. Ora puoi salvare il tuo file Excel.
+Nel prossimo file (`02_Macro_Genera_Calendari.txt`), vedremo come scrivere la prima macro per creare automaticamente tutti i fogli mensili partendo da questo template.

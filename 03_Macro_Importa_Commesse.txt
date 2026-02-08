@@ -1,0 +1,238 @@
+################################################################################
+# File 03: Macro per l'Importazione e Aggiornamento (Versione Corretta)
+################################################################################
+
+Ciao! Con i calendari pronti, è il momento di creare la funzionalità per importare e, soprattutto, aggiornare dinamicamente le commesse.
+
+In questa fase, creeremo una finestra di dialogo (UserForm) che ti mostrerà lo stato di avanzamento di tutte le commesse e le ordinerà per urgenza. Questa finestra ti permetterà di caricarle o aggiornarle nel foglio mensile attivo.
+
+---
+
+### **Azione 1: Creare la Finestra di Selezione (UserForm)**
+
+1.  Apri l'editor di VBA (**`ALT + F11`**).
+2.  Nel menu, clicca su **`Inserisci`** -> **`UserForm`**.
+3.  Seleziona la UserForm e, nella finestra "Proprietà" a sinistra, imposta:
+    -   `(Name)`: **`frmSelezionaCommesse`**
+    -   `Caption`: **`Seleziona Commesse da Importare/Aggiornare`**
+
+---
+
+### **Azione 2: Aggiungere i Controlli alla UserForm**
+
+Usa la "Casella degli strumenti" per aggiungere questi elementi:
+
+1.  **Aggiungi una Casella di Riepilogo (ListBox):**
+    -   Disegna un grande rettangolo sulla UserForm.
+    -   Nelle "Proprietà", imposta:
+        -   `(Name)`: **`lstCommesse`**
+        -   `MultiSelect`: **`1 - fmMultiSelectMulti`** (Permette la selezione multipla).
+
+2.  **Aggiungi due Pulsanti di Comando (CommandButton):**
+    -   Crea un pulsante in basso e imposta:
+        -   `(Name)`: **`cmdImporta`**
+        -   `Caption`: **`Importa/Aggiorna`**
+    -   Crea un secondo pulsante e imposta:
+        -   `(Name)`: **`cmdAnnulla`**
+        -   `Caption`: **`Annulla`**
+
+---
+
+### **Azione 3: Scrivere il Codice VBA per la UserForm**
+
+Questo codice avanzato gestisce il calcolo dello stato, l'ordinamento e l'aggiornamento dinamico.
+
+1.  Fai **doppio clic** su un'area vuota della UserForm per aprire la finestra del codice.
+2.  Cancella tutto il testo presente e incolla il seguente codice:
+
+```vb
+Option Explicit
+
+' MODIFICA PRINCIPALE: Caricamento, calcolo stato, ordinamento e visualizzazione
+Private Sub UserForm_Initialize()
+    Dim elencoSheet As Worksheet, lastRow As Long, i As Long
+    Set elencoSheet = ThisWorkbook.Worksheets("ELENCO_COMMESSE")
+    lastRow = elencoSheet.Cells(elencoSheet.Rows.Count, "A").End(xlUp).Row
+
+    ' Controlla se ci sono commesse da caricare
+    If lastRow < 2 Then
+        lstCommesse.AddItem "Nessuna commessa trovata."
+        Exit Sub
+    End If
+
+    ' Usa un array per caricare e ordinare i dati
+    Dim datiCommesse() As Variant
+    ReDim datiCommesse(1 To lastRow - 1, 1 To 4) ' N°, Nome, Data Consegna, Stato
+    
+    Dim colConsegna As Variant
+    colConsegna = Application.Match("DATA CONSEGNA RICHIESTA", elencoSheet.Rows(1), 0)
+    
+    Dim idx As Long: idx = 1
+    For i = 2 To lastRow
+        If Trim(CStr(elencoSheet.Cells(i, "A").Value)) <> "" Then
+            datiCommesse(idx, 1) = elencoSheet.Cells(i, "A").Value
+            datiCommesse(idx, 2) = elencoSheet.Cells(i, "B").Value
+            
+            ' Gestione Data Consegna
+            If Not IsError(colConsegna) And IsDate(elencoSheet.Cells(i, colConsegna).Value) Then
+                datiCommesse(idx, 3) = CDate(elencoSheet.Cells(i, colConsegna).Value)
+            Else
+                datiCommesse(idx, 3) = DateSerial(9999, 12, 31) ' Data molto lontana per ordinare in fondo
+            End If
+            
+            ' Recupero Stato Globale
+            datiCommesse(idx, 4) = GetStatoCommessa(CStr(datiCommesse(idx, 1)))
+            idx = idx + 1
+        End If
+    Next i
+    
+    ' Riduci l'array se ci sono state righe vuote
+    If idx - 1 < UBound(datiCommesse, 1) Then
+        ReDim Preserve datiCommesse(1 To idx - 1, 1 To 4)
+    End If
+    
+    ' Ordina l'array in base alla data di consegna (colonna 3)
+    BubbleSort datiCommesse, 3
+    
+    ' Popola la ListBox con i dati ordinati e formattati
+    With lstCommesse
+        .Clear
+        .ColumnCount = 2
+        .ColumnWidths = "30;350"
+    End With
+    
+    For i = 1 To UBound(datiCommesse, 1)
+        lstCommesse.AddItem
+        lstCommesse.List(lstCommesse.ListCount - 1, 0) = datiCommesse(i, 1)
+        
+        Dim testoRiga As String
+        testoRiga = datiCommesse(i, 4) & " " & datiCommesse(i, 2)
+        
+        If CDate(datiCommesse(i, 3)) <> DateSerial(9999, 12, 31) Then
+            testoRiga = testoRiga & " (Consegna: " & Format(CDate(datiCommesse(i, 3)), "dd/mm/yy") & ")"
+        Else
+            testoRiga = testoRiga & " (Consegna: N/D)"
+        End If
+        
+        lstCommesse.List(lstCommesse.ListCount - 1, 1) = testoRiga
+    Next i
+End Sub
+
+Private Sub cmdAnnulla_Click()
+    Unload Me
+End Sub
+
+' LOGICA DI IMPORTAZIONE E AGGIORNAMENTO DINAMICO
+Private Sub cmdImporta_Click()
+    If Me.lstCommesse.ListIndex = -1 Then
+        MsgBox "Seleziona almeno una commessa.", vbInformation
+        Exit Sub
+    End If
+
+    Dim elencoSheet As Worksheet, activeSheet As Worksheet, i As Long
+    Set elencoSheet = ThisWorkbook.Worksheets("ELENCO_COMMESSE")
+    Set activeSheet = ThisWorkbook.activeSheet
+    
+    Application.ScreenUpdating = False
+
+    For i = 0 To lstCommesse.ListCount - 1
+        If lstCommesse.Selected(i) Then
+            Dim numCommessa As String: numCommessa = lstCommesse.List(i, 0)
+            Dim rigaCommessaElenco As Range: Set rigaCommessaElenco = elencoSheet.Range("A:A").Find(numCommessa, LookIn:=xlValues, LookAt:=xlWhole)
+            
+            If Not rigaCommessaElenco Is Nothing Then
+                Dim nomeCommessa As String: nomeCommessa = elencoSheet.Cells(rigaCommessaElenco.Row, "B").Value
+                
+                ' Cerca se la commessa esiste già nel foglio attivo
+                Dim colCommessaAttiva As Variant
+                Dim matchRange As Range
+                Set matchRange = activeSheet.Range("B27", activeSheet.Cells(27, activeSheet.Columns.Count).End(xlToLeft))
+                colCommessaAttiva = Application.Match(nomeCommessa, matchRange, 0)
+                
+                Dim targetCol As Long
+                If IsError(colCommessaAttiva) Then
+                    ' Commessa non trovata: la importiamo in una nuova colonna
+                    targetCol = activeSheet.Cells(27, activeSheet.Columns.Count).End(xlToLeft).Column
+                    If activeSheet.Cells(27, targetCol).Value <> "" Then targetCol = targetCol + 1
+                    If targetCol < 2 Then targetCol = 2
+                    
+                    activeSheet.Cells(26, targetCol).Value = elencoSheet.Cells(rigaCommessaElenco.Row, "C").Value
+                    activeSheet.Cells(27, targetCol).Value = nomeCommessa
+                Else
+                    ' Commessa trovata: usiamo la sua colonna per l'aggiornamento
+                    targetCol = colCommessaAttiva + 1
+                End If
+                
+                Dim mapFasi As Variant: mapFasi = Array("ORE SVILUPPO", "ORE LASER 1", "ORE LASER 2", "ORE PUNZONATURA", "ORE TAGLIO", "ORE SBAVATURA/ SATINATURA", "ORE PIEGA", "ORE FORATURA/ MASCHIATURA / FRESATURA/ TORNITURA", "ORE CALANDRATURA/ CURVATURA", "ORE ASSEMBLAGGIO", "ORE COLLAUDO")
+                
+                Dim j As Long
+                For j = 0 To UBound(mapFasi)
+                    Dim nomeFase As String: nomeFase = mapFasi(j)
+                    Dim colFaseElenco As Variant: colFaseElenco = Application.Match(nomeFase, elencoSheet.Rows(1), 0)
+                    
+                    If Not IsError(colFaseElenco) Then
+                        Dim oreNuove As Double
+                        If IsNumeric(elencoSheet.Cells(rigaCommessaElenco.Row, colFaseElenco).Value) Then
+                            oreNuove = CDbl(elencoSheet.Cells(rigaCommessaElenco.Row, colFaseElenco).Value)
+                        Else
+                            oreNuove = 0
+                        End If
+                        
+                        Dim cellaDestinazione As Range
+                        Dim rigaFaseAttiva As Variant: rigaFaseAttiva = Application.Match(nomeFase, activeSheet.Range("A28:A38"), 0)
+                        
+                        If Not IsError(rigaFaseAttiva) Then
+                            Set cellaDestinazione = activeSheet.Cells(27 + rigaFaseAttiva, targetCol)
+                            Dim oreVecchie As Double
+                            If IsNumeric(cellaDestinazione.Value) Then oreVecchie = CDbl(cellaDestinazione.Value) Else oreVecchie = 0
+                            
+                            If oreNuove < oreVecchie Then
+                                Call RimuoviOreInEccesso(nomeCommessa, nomeFase, oreVecchie - oreNuove)
+                            End If
+                            
+                            cellaDestinazione.Value = oreNuove
+                            Call AggiornaColoreCellaStato(cellaDestinazione)
+                        End If
+                    End If
+                Next j
+            End If
+        End If
+    Next i
+    
+    Application.ScreenUpdating = True
+    Unload Me
+    MsgBox "Importazione/Aggiornamento completato!", vbInformation
+End Sub
+```
+
+---
+
+### **Azione 4: Creare la Macro di Avvio e il Pulsante**
+
+1.  Torna al **`Modulo1`** (dove c'è `GeneraTuttiICalendari`).
+2.  Aggiungi alla fine del modulo il seguente codice:
+
+    ```vb
+    Sub ApriFinestraImportazione()
+        ' Controlla che il foglio attivo sia un foglio mensile valido
+        If ActiveSheet.Name = "ELENCO_COMMESSE" Or ActiveSheet.Name = "Template_Mese" Then
+            MsgBox "Posizionati prima su un foglio mensile.", vbInformation
+            Exit Sub
+        End If
+        
+        ' Mostra la finestra di dialogo
+        frmSelezionaCommesse.Show
+    End Sub
+    ```
+
+3.  Su Excel, posizionati su un foglio mensile (es. **`Gennaio2026`**).
+4.  Vai su **`Sviluppo`** -> **`Inserisci`** -> **`Pulsante`**.
+5.  Disegna il pulsante sul foglio.
+6.  Assegna la macro **`ApriFinestraImportazione`** e clicca `OK`.
+7.  Rinomina il testo del pulsante in **`Importa/Aggiorna Commesse`**.
+
+---
+
+**Completato!**
+
+Ora il pulsante aprirà una finestra molto più potente, che ti mostra lo stato delle commesse e le ordina per urgenza. La logica di importazione è ora in grado di aggiornare i dati se una commessa è già presente.

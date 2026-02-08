@@ -1,0 +1,161 @@
+################################################################################
+# File 02: Macro per la Generazione dei Calendari (Versione Corretta)
+################################################################################
+
+Ciao! Ora che la struttura base è pronta, è il momento di scrivere la nostra prima macro.
+
+Questa macro genererà automaticamente tutti i fogli mensili dal 2026 al 2027, costruendo per ciascuno un calendario robusto e a prova di errore.
+
+---
+
+### **Azione 1: Aprire l'Editor di Visual Basic (VBA)**
+
+1.  Nel tuo file Excel, premi **`ALT + F11`**.
+2.  Si aprirà l'editor di Visual Basic for Applications (VBA).
+
+---
+
+### **Azione 2: Inserire un Nuovo Modulo**
+
+1.  Nel menu in alto, clicca su **`Inserisci`** -> **`Modulo`**.
+2.  Nel riquadro "Progetto" a sinistra, vedrai "Modulo1". Al centro, vedrai un'area bianca per il codice.
+
+---
+
+### **Azione 3: Copiare e Incollare il Codice VBA Corretto**
+
+Cancella qualsiasi codice presente nel "Modulo1" e incolla l'intero blocco di codice che trovi qui sotto.
+
+```vb
+' Opzione che forza la dichiarazione di tutte le variabili, utile per evitare errori.
+Option Explicit
+
+'
+' --- MACRO PRINCIPALE PER GENERARE I CALENDARI (Versione Definitiva) ---
+'
+Sub GeneraTuttiICalendari()
+
+    ' --- Impostazioni Iniziali ---
+    Dim startDate As Date, endDate As Date, templateSheet As Worksheet, currentMonth As Date
+    startDate = DateSerial(2026, 1, 1)
+    endDate = DateSerial(2027, 12, 1)
+
+    ' Controlla che il foglio template esista
+    On Error Resume Next
+    Set templateSheet = ThisWorkbook.Worksheets("Template_Mese")
+    On Error GoTo 0
+    If templateSheet Is Nothing Then
+        MsgBox "Il foglio 'Template_Mese' non è stato trovato.", vbCritical
+        Exit Sub
+    End If
+
+    ' --- Messaggio di Conferma ---
+    If MsgBox("Stai per generare i calendari da Gennaio 2026 a Dicembre 2027. Continuare?", vbYesNo + vbQuestion) = vbNo Then
+        Exit Sub
+    End If
+
+    ' --- Inizio Generazione ---
+    Application.ScreenUpdating = False
+    currentMonth = startDate
+    Do While currentMonth <= endDate
+        
+        Dim nomeFoglio As String: nomeFoglio = Format(currentMonth, "MMMMYYYY")
+        
+        ' Elimina il foglio se esiste già
+        Application.DisplayAlerts = False
+        On Error Resume Next
+        ThisWorkbook.Worksheets(nomeFoglio).Delete
+        On Error GoTo 0
+        Application.DisplayAlerts = True
+        
+        ' Copia il template e rinomina il nuovo foglio
+        templateSheet.Copy After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count)
+        Dim newSheet As Worksheet: Set newSheet = ActiveSheet
+        newSheet.Name = nomeFoglio
+
+        ' Calcola e scrive le date di inizio/fine mese
+        Dim primoGiornoMese As Date: primoGiornoMese = DateSerial(Year(currentMonth), Month(currentMonth), 1)
+        Dim ultimoGiornoMese As Date: ultimoGiornoMese = DateSerial(Year(currentMonth), Month(currentMonth) + 1, 0)
+        newSheet.Range("W1").Value = primoGiornoMese
+        newSheet.Range("Y1").Value = ultimoGiornoMese
+        newSheet.Range("W1:Y1").NumberFormat = "dddd d mmmm"
+
+        ' --- Costruzione del Calendario ---
+        Dim currentCol As Long: currentCol = 2
+        Dim giornoCorrente As Date
+        For giornoCorrente = primoGiornoMese To ultimoGiornoMese
+            
+            Dim giornoSettimana As Integer: giornoSettimana = Weekday(giornoCorrente, vbMonday)
+            Dim oreGiorno As Integer
+            
+            Select Case giornoSettimana
+                Case 1 To 5: oreGiorno = 8 ' Lun-Ven
+                Case 6: oreGiorno = 5     ' Sabato
+                Case 7: oreGiorno = 0     ' Domenica
+            End Select
+            
+            If oreGiorno > 0 Then
+                ' CORREZIONE FINALE E DEFINITIVA DEL BUG DEL MARTEDÌ:
+                ' L'ordine delle operazioni è FONDAMENTALE per evitare l'auto-formattazione di Excel.
+                ' 1. Definisci il range per l'intestazione.
+                Dim headerRange As Range
+                Set headerRange = newSheet.Range(newSheet.Cells(2, currentCol), newSheet.Cells(2, currentCol + oreGiorno - 1))
+                
+                ' 2. PRIMA unisci le celle.
+                Application.DisplayAlerts = False
+                headerRange.Merge
+                Application.DisplayAlerts = True
+                
+                ' 3. DOPO inserisci il valore e la formattazione nella cella unita.
+                With headerRange
+                    .Value = giornoCorrente
+                    .NumberFormat = "ddd d"
+                    .HorizontalAlignment = xlCenter
+                    .Font.Bold = True
+                End With
+                
+                ' Scrivi i numeri delle ore (1, 2, 3...) in riga 3
+                Dim i As Integer
+                For i = 1 To oreGiorno
+                    newSheet.Cells(3, currentCol + i - 1).Value = i
+                Next i
+                
+                ' Colora lo sfondo del sabato
+                If giornoSettimana = 6 Then
+                    newSheet.Range(newSheet.Cells(2, currentCol), newSheet.Cells(13, currentCol + oreGiorno - 1)).Interior.Color = RGB(240, 240, 240)
+                End If
+                
+                ' Applica i bordi
+                newSheet.Range(newSheet.Cells(2, currentCol), newSheet.Cells(13, currentCol + oreGiorno - 1)).Borders.LineStyle = xlContinuous
+                
+                ' Avanza alla colonna successiva
+                currentCol = currentCol + oreGiorno
+            End If
+        Next giornoCorrente
+        
+        ' Adatta la larghezza delle colonne
+        newSheet.Range(newSheet.Cells(1, 2), newSheet.Cells(1, currentCol - 1)).ColumnWidth = 3
+        
+        currentMonth = DateAdd("m", 1, currentMonth)
+    Loop
+
+    Application.ScreenUpdating = True
+    templateSheet.Activate
+    MsgBox "Generazione dei calendari completata!", vbInformation
+
+End Sub
+```
+
+---
+
+### **Azione 4: Eseguire la Macro**
+
+1.  Chiudi l'editor VBA (**`ALT + F11`**).
+2.  Premi **`ALT + F8`** per aprire la finestra delle macro.
+3.  Seleziona **"GeneraTuttiICalendari"** e clicca su **`Esegui`**.
+
+---
+
+**Completato!**
+
+Questa versione del codice risolve definitivamente il problema di formattazione del martedì. Ora tutti i giorni del calendario verranno creati in modo corretto e affidabile.
