@@ -1,0 +1,2 @@
+Ciao! Questo è un file di test creato da Jules per confermare l'integrazione con il repository GitHub.
+Integrazione riuscita correttamente!
